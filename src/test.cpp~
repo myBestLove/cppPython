@@ -1,0 +1,412 @@
+#define PY_ARRAY_UNIQUE_SYMBOL pbcvt_ARRAY_API
+
+#include <boost/python.hpp>
+#include <pyboostcvconverter/pyboostcvconverter.hpp>
+#include <Python.h>
+#include <string>
+#include <opencv2/opencv.hpp>
+#include <fstream>
+#include <dirent.h>
+#include <sys/time.h>
+#include <fstream>
+
+#include <pcl/io/ply_io.h>
+// #include <pcl/point_types.h>
+
+using namespace cv;
+using namespace std;
+using namespace pbcvt;
+
+    using namespace boost::python;
+
+/**
+ * Example function. Basic inner matrix product using explicit matrix conversion.
+ * @param left left-hand matrix operand (NdArray required)
+ * @param right right-hand matrix operand (NdArray required)
+ * @return an NdArray representing the dot-product of the left and right operands
+ */
+    PyObject *dot(PyObject *left, PyObject *right) {
+
+        cv::Mat leftMat, rightMat;
+        leftMat = pbcvt::fromNDArrayToMat(left);
+        rightMat = pbcvt::fromNDArrayToMat(right);
+        auto c1 = leftMat.cols, r2 = rightMat.rows;
+        // Check that the 2-D matrices can be legally multiplied.
+        if (c1 != r2) {
+            PyErr_SetString(PyExc_TypeError,
+                            "Incompatible sizes for matrix multiplication.");
+            throw_error_already_set();
+        }
+        cv::Mat result = leftMat * rightMat;
+        PyObject *ret = pbcvt::fromMatToNDArray(result);
+        return ret;
+    }
+
+//This example uses Mat directly, but we won't need to worry about the conversion
+/**
+ * Example function. Basic inner matrix product using implicit matrix conversion.
+ * @param leftMat left-hand matrix operand
+ * @param rightMat right-hand matrix operand
+ * @return an NdArray representing the dot-product of the left and right operands
+ */
+    cv::Mat dot2(cv::Mat leftMat, cv::Mat rightMat) {
+        auto c1 = leftMat.cols, r2 = rightMat.rows;
+        if (c1 != r2) {
+            PyErr_SetString(PyExc_TypeError,
+                            "Incompatible sizes for matrix multiplication.");
+            throw_error_already_set();
+        }
+        cv::Mat result = leftMat * rightMat;
+
+        return result;
+    }
+
+
+#if (PY_VERSION_HEX >= 0x03000000)
+
+    static void *init_ar() {
+#else
+        static void init_ar(){
+#endif
+        Py_Initialize();
+
+        import_array();
+        return NUMPY_IMPORT_ARRAY_RETVAL;
+    }
+
+    // BOOST_PYTHON_MODULE (pbcvt) {
+    //     //using namespace XM;
+    //     init_ar();
+
+    //     //initialize converters
+    //     to_python_converter<cv::Mat,
+    //             pbcvt::matToNDArrayBoostConverter>();
+    //     pbcvt::matFromNDArrayBoostConverter();
+
+    //     //expose module-level functions
+    //     def("dot", dot);
+    //     def("dot2", dot2);
+
+    // }
+
+    
+int func(string model_data_path, cv::Mat image)
+{
+
+    int res;
+
+    PyObject *pModule,*pFunc,*pDict;
+    PyObject *pArgs, *pValue;
+
+    PyObject *pImage = fromMatToNDArray(image);
+    PyObject *pPath = PyString_FromString(model_data_path.c_str());
+
+    /* import */
+    pModule = PyImport_ImportModule("add_module");
+    if (pModule == NULL) {  
+        cout<<"ERROR importing module"<<endl;  
+    } 
+
+    /* great_module.great_function */
+    // pFunc = PyObject_GetAttrString(pModule, "add");
+    pDict = PyModule_GetDict(pModule);
+    // pFunc is also a borrowed reference
+    pFunc = PyDict_GetItemString(pDict, (char*)"model_image");
+
+    /* build args */
+ 
+    pArgs = PyTuple_New(2);
+    PyTuple_SetItem(pArgs,0, PyLong_FromLong(3));
+    PyTuple_SetItem(pArgs,1, PyLong_FromLong(3));
+
+    PyObject *pArgs1 = Py_BuildValue("i", 5);
+    PyObject *pArgs2 = Py_BuildValue("i", 3);
+
+
+
+
+    /* call */
+    if(pFunc != NULL) {  
+        // pValue = PyObject_CallObject(pFunc, pArgs);
+        // pValue = PyObject_CallFunction(pFunc, "OO",pArgs1,pArgs2 );
+        pValue = PyObject_CallFunction(pFunc, "OO",pPath,pImage );
+        
+    }
+
+    // res = PyInt_AsLong(pValue);
+    // cout<<res<<endl;
+    cv::Mat trans_image = pbcvt::fromNDArrayToMat(pValue);
+    // imshow("a",trans_image);
+    // waitKey(0);
+
+    return res;
+
+}
+
+
+
+PyObject *pModule,*pFunc,*pDict;
+bool pyinit(){
+
+    /* import */
+    pModule = PyImport_ImportModule("predict_module");
+    if (pModule == NULL) {  
+        cout<<"ERROR importing module"<<endl; 
+        return false; 
+    } 
+
+    pDict = PyModule_GetDict(pModule);
+
+    pFunc = PyDict_GetItemString(pDict, (char*)"predict");
+
+    if(pFunc != NULL) { 
+        return true;
+    }else{
+        cout<<"function error!"<<endl;
+        return false;
+    }
+    
+
+}
+
+// bool pypredict_init(string model_data_path){
+//     PyObject *pValue;
+
+//     pFunc = PyDict_GetItemString(pDict, (char*)"load_model");
+//     PyObject *pPath = PyString_FromString(model_data_path.c_str());
+
+//     /* call */
+//     if(pFunc != NULL) {  
+//         pValue = PyObject_CallFunction(pFunc, "O",pPath);
+        
+//     }else{
+//         cout<<"function error!"<<endl;
+//         return false;
+//     }
+
+//     int res = PyInt_AsLong(pValue);
+
+//     return true;
+
+// }
+
+cv::Mat pypredict_predict(cv::Mat image){
+    
+    // string name = "/home/jason/code/FCRN-DepthPrediction/Images/1.jpg";
+    // PyObject *pImage = PyString_FromString(name.c_str());//fromMatToNDArray(image);
+    PyObject *pImage = fromMatToNDArray(image);
+    PyObject *pValue = PyObject_CallFunction(pFunc, "O",pImage );
+        
+
+
+    cv::Mat res;
+    if(pValue != NULL)
+         res = pbcvt::fromNDArrayToMat(pValue);
+    else
+        return cv::Mat();
+    cout<<res.size()<<endl;
+    return res;
+
+}
+
+typedef pcl::PointXYZRGB PointT;
+typedef pcl::PointCloud<PointT> PointCloud;
+
+int main(int argc, char *argv[])
+{
+
+    
+    
+    // Py_Initialize();
+    // import_array();
+    init_ar();
+    char str[] = "Python";
+    Py_SetProgramName(str);
+    if(!Py_IsInitialized())
+        cout << "init faild/n" << endl;
+    // 下面可以只是方便调试，可以不用。
+    PyRun_SimpleString("import sys");
+    PyRun_SimpleString("sys.path.append('../python')");
+    PyRun_SimpleString("import os");
+    PyRun_SimpleString("print os.getcwd()");
+    PyRun_SimpleString("print ('Hello Python!')\n");
+
+    cv::Mat image1 = cv::imread("/home/jason/code/FCRN-DepthPrediction/Images/1.jpg");
+    cv::Mat image2 = cv::imread("/home/jason/code/FCRN-DepthPrediction/Images/1BedRoom_lg.jpg");
+    cv::Mat image3 = cv::imread("/home/jason/code/FCRN-DepthPrediction/Images/1_furniture.jpg");
+    cv::Mat image4 = cv::imread("/home/jason/code/FCRN-DepthPrediction/Images/0000000036.jpg");
+    cv::Mat image5 = cv::imread("/home/jason/code/FCRN-DepthPrediction/Images/2333_2.jpg");
+
+    cv::resize(image1,image1,cv::Size(304,228));
+    cv::resize(image2,image2,cv::Size(304,228));
+    cv::resize(image3,image3,cv::Size(304,228));
+    cv::resize(image4,image4,cv::Size(304,228));
+    cv::resize(image5,image5,cv::Size(304,228));
+    // cvtColor(image, image,CV_BGR2GRAY);
+    // cv::Mat t = cv::Mat::zeros(10,10,CV_32FC3);
+    // for(float i=0;i<10;i++)
+    //     for(float j=0;j<10;j++){
+    //         float tt = i*j/99;
+    //         cv::Vec3f v(tt,tt,tt);
+    //         t.at<cv::Vec3f>(i,j) = v;
+    //     }
+
+    // int a = func("/home/jason/code/FCRN-DepthPrediction/tensorflow/NYU_ResNet-UpProj.npy",image);
+    cv::Mat depth;
+    int index = 0;
+    if(pyinit()){
+        // if(pypredict_init("/home/jason/code/ORB_SLAM2_deeplearning/FCRN-DepthPrediction/tensorflow/NYU_FCRN-checkpoint/NYU_FCRN.ckpt")){
+            // ifstream inf("/media/jason/Jason/database/nyu_depth_v2_raw/file.txt",ios::in);
+            // char bufferf[1024];
+            // string pathf = "/media/jason/Jason/database/nyu_depth_v2_raw";
+
+            // while(inf>>bufferf){
+
+            //     string dirname = bufferf;
+            //     string dir = pathf+"/"+dirname;
+            //     string dirfile = dir+"/file.txt";
+            //     ifstream in(dirfile,ios::in);
+            //     char buffer[1024];
+            //     string path = dir;
+            //     cv::Mat image;
+            //     cout<<dir<<endl;
+            //     while(in>>buffer){
+            //         string context = buffer;
+            //         string name = path+"/"+context;
+            //         image = cv::imread(name+".ppm");
+            //         cout<<"deal with "<<index++<<": "<<name<<endl;
+            //         if(image.empty()){
+            //             cout<<name<<endl;
+            //             break;
+            //         }
+                    // cout<<name<<endl;
+                cv::VideoCapture capture;
+                capture.open(0);
+                //
+                cv::Mat image;
+                //
+                while(1){
+                    capture>>image;
+       
+                    cv::resize(image,image,cv::Size(304,228));
+
+
+                    struct timeval start,end;
+                    gettimeofday(&start,NULL);
+                    depth = pypredict_predict(image);
+                    gettimeofday(&end,NULL);
+                    double time = end.tv_sec-start.tv_sec+(end.tv_usec-start.tv_usec)/1000000.0;
+                    cout<<"time: "<<time<<endl;
+
+                    cv::normalize(depth, depth,50,0,cv::NORM_MINMAX);
+
+
+                    // cv::Mat depth_stand = imread(name+"pgm");
+                    // if(image.empty()){
+                    //     cout<<name<<endl;
+                    //     break;
+                    // }
+                    // cv::resize(depth_stand,depth_stand,cv::Size(304,228),INTER_CUBIC);
+                    cv::resize(depth,depth,cv::Size(304,228));
+
+                    imshow("image",image);
+                    imshow("depth",depth);
+                    // imshow("depth_stand",depth_stand);
+                    char c = (char)waitKey(100);
+                    if(c == 27)
+                        break;
+                    else if(c == 's'){
+                        std::string fileName1 = "image.yml";
+                        cv::FileStorage fs1(fileName1 , cv::FileStorage::WRITE);
+                        if ( !fs1.isOpened() ) // failed
+                        {
+                            std::cout<<"Save File Failed!"<<std::endl;
+                            return 0;
+                        }
+                        else // succeed
+                        {
+                            fs1 <<"image " << image; // cv::Mat
+                            fs1.release();
+                            cout<<"ok"<<endl;
+                        }
+
+                        // std::string fileName = "depth.yml";
+                        // cv::FileStorage fs(fileName , cv::FileStorage::WRITE);
+                        // if ( !fs.isOpened() ) // failed
+                        // {
+                        //     std::cout<<"Save File Failed!"<<std::endl;
+                        //     return 0;
+                        // }
+                        // else // succeed
+                        // {
+                        //     fs <<"depth " << depth; // cv::Mat
+                        //     fs.release();
+                        //     cout<<"ok2"<<endl;
+                        // }
+
+                        ofstream fout( "cdepth.txt" );  
+                        if ( ! fout)
+                        {
+                            cout << "文件不能打开" <<endl;
+                            return 0;
+                        }
+                          
+                        imwrite("image.png",image);
+                        PointCloud::Ptr pointCloud(new PointCloud);
+                        for(int i=0;i<depth.rows;i++){
+                            for(int j=0;j<depth.cols;j++){
+                                PointT p;
+                                
+                                p.z = depth.at<float>(i,j);
+                                //p.x = ( j - 319.5000000)/814.5541909 ;
+                                //p.y = ( i - 239.5000000)/814.5541909 ;
+                                p.x = j;
+                                p.y = i;
+                                p.b = image.data[i*image.step+j*image.channels()];
+                                p.g = image.data[i*image.step+j*image.channels()+1];
+                                p.r = image.data[i*image.step+j*image.channels()+2];
+                                pointCloud->push_back(p);
+
+
+                                fout<< depth.at<float>(i,j)<<" ";
+                            }
+                            fout<<"\n";
+                        }
+                        pointCloud->height = 1;
+                        pointCloud->width = pointCloud->points.size();
+                        ///save ply file
+                        pcl::PLYWriter writer;
+                        writer.write("depth.ply",*pointCloud);
+                        pointCloud->points.clear();
+
+                        fout.close();
+
+                    }
+                // }
+            }
+
+            
+
+            // imshow("a",depth);
+            // waitKey(0);
+        // }
+    }
+    // for(float i=0;i<depth.rows;i++){
+    //     for(float j=0;j<depth.cols;j++){
+    //         cout<<depth.at<float>(i,j)<<" ";
+    //     }
+    //     cout<<endl;
+    // }
+
+    return 0;
+}
+
+
+
+
+
+
+
+
+
+
